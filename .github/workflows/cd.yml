@@ -18,6 +18,8 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ssh_key.pem
           chmod 600 ssh_key.pem
           ls -l ssh_key.pem  # Debugging step
+- name: SSH into Server
+  run: ssh -vvv -o StrictHostKeyChecking=no -i ssh_key.pem ubuntu@your-server-ip "echo '✅ SSH Connection Successful'"
 
       - name: Debug SSH Connection
         run: |
