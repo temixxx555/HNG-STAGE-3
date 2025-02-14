@@ -15,41 +15,10 @@ jobs:
 
       - name: Setup SSH Key
         run: |
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ssh_key.pem
-          chmod 400 ssh_key.pem
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ssh_key.pem
+          chmod 600 ssh_key.pem
+          ls -l ssh_key.pem  # Debugging step
 
       - name: Debug SSH Connection
         run: |
           ssh -vvv -o StrictHostKeyChecking=no -i ssh_key.pem ubuntu@${{ secrets.SERVER_IP }} "echo '✅ SSH Connection Successful'"
-
-      - name: Deploy to AWS EC2
-        run: |
-          ssh -o StrictHostKeyChecking=no -i ssh_key.pem ubuntu@${{ secrets.SERVER_IP }} << 'EOF'
-            set -e  # Exit on first error
-            echo "🚀 Starting Deployment..."
-
-            # Navigate to project directory
-            cd /home/ubuntu/fastapi-book-project || exit 1
-
-            # Ensure systemd is reloaded
-            sudo systemctl daemon-reload || true
-
-            # Pull latest code
-            echo "📥 Pulling latest code..."
-            git pull origin main || exit 1
-
-            # Activate virtual environment & install dependencies
-            chmod +x env/bin/activate
-            source env/bin/activate || exit 1
-            pip install --no-cache-dir -r requirements.txt || exit 1
-
-            # Restart FastAPI service
-            echo "🔄 Restarting FastAPI..."
-            sudo systemctl restart fastapi || exit 1
-
-            # Wait before restarting Nginx
-            sleep 5
-            sudo systemctl restart nginx || exit 1
-
-            echo "✅ Deployment Successful!"
-          EOF
