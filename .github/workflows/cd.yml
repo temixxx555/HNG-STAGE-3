@@ -1,4 +1,5 @@
-name: CD
+name: CD Pipeline
+
 on:
   push:
     branches:
@@ -8,6 +9,16 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@master
         with:
@@ -15,9 +26,15 @@ jobs:
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            set -e  # Stop script if any command fails
             cd /home/ubuntu/fastapi-book-project
+            echo "Pulling latest changes..."
             git pull origin main
+            echo "Activating virtual environment..."
             source env/bin/activate
+            echo "Installing dependencies..."
             pip install -r requirements.txt
+            echo "Restarting FastAPI and Nginx..."
             sudo systemctl restart fastapi
             sudo systemctl restart nginx
+            echo "✅ Deployment complete!"
