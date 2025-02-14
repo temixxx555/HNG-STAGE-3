@@ -16,7 +16,7 @@ jobs:
       - name: Setup SSH Key
         run: |
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ssh_key.pem
-          chmod 600 ssh_key.pem
+          chmod 400 ssh_key.pem
 
       - name: Debug SSH Connection
         run: |
