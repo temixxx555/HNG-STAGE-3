@@ -8,33 +8,51 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Setup SSH Key
+      - name: Debug SSH Connection
+        env:
+          PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HOST: ${{ secrets.SERVER_IP }}
+          USER: ubuntu
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+          echo "$PRIVATE_KEY" > ssh_private_key.pem
+          chmod 600 ssh_private_key.pem
+          ssh -vvv -o StrictHostKeyChecking=no -i ssh_private_key.pem $USER@$HOST "echo 'SSH Connection Successful'"
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            set -e  # Stop script if any command fails
-            cd /home/ubuntu/fastapi-book-project
-            echo "Pulling latest changes..."
-            git pull origin main
-            echo "Activating virtual environment..."
-            source env/bin/activate
-            echo "Installing dependencies..."
-            pip install -r requirements.txt
-            echo "Restarting FastAPI and Nginx..."
-            sudo systemctl restart fastapi
-            sudo systemctl restart nginx
-            echo "✅ Deployment complete!"
+      - name: Deploy to AWS EC2
+        env:
+          PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HOST: ${{ secrets.SERVER_IP }}
+          USER: ubuntu
+        run: |
+          echo "$PRIVATE_KEY" > ssh_private_key.pem
+          chmod 600 ssh_private_key.pem
+          ssh -o StrictHostKeyChecking=no -i ssh_private_key.pem $USER@$HOST << 'EOF'
+            set -e  # Exit on error
+            echo "Starting deployment on EC2..."
+            
+            cd /home/ubuntu/fastapi-book-project || exit 1
+      
+            # Ensure systemd is reloaded
+            sudo systemctl daemon-reload || true
+      
+            # Pull latest code and install dependencies
+            echo "Pulling latest code..."
+            git pull origin main || exit 1
+            source env/bin/activate || exit 1
+            pip install -r requirements.txt || exit 1
+      
+            # Restart FastAPI service
+            echo "Restarting FastAPI service..."
+            sudo systemctl restart fastapi || exit 1
+      
+            # Wait for FastAPI to boot up before restarting Nginx
+            sleep 5
+            sudo systemctl restart nginx || exit 1
+      
+            echo "Deployment successful!"
+          EOF
